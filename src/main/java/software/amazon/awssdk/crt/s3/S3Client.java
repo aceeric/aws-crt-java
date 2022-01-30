@@ -5,10 +5,15 @@
  */
 package software.amazon.awssdk.crt.s3;
 
+import java.net.URI;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
 import software.amazon.awssdk.crt.CrtResource;
 import software.amazon.awssdk.crt.CrtRuntimeException;
+import software.amazon.awssdk.crt.http.HttpHeader;
 import software.amazon.awssdk.crt.http.HttpRequestBodyStream;
 import software.amazon.awssdk.crt.io.TlsContext;
 import software.amazon.awssdk.crt.io.StandardRetryOptions;
@@ -16,16 +21,21 @@ import software.amazon.awssdk.crt.Log;
 
 public class S3Client extends CrtResource {
 
+    private final static int NO_PORT = -1;
     private final static Charset UTF8 = java.nio.charset.StandardCharsets.UTF_8;
     private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
     private final String region;
+    private final boolean withTls;
 
     public S3Client(S3ClientOptions options) throws CrtRuntimeException {
+        // TODO consider just init the tls context the way it always was and override solely in get meta req
         TlsContext tlsCtx = options.getTlsContext();
+        withTls  = tlsCtx != null || options.getTlsEnabled();
         region = options.getRegion();
         acquireNativeHandle(s3ClientNew(this, region.getBytes(UTF8),
                 options.getEndpoint() != null ? options.getEndpoint().getBytes(UTF8) : null,
                 options.getClientBootstrap().getNativeHandle(), tlsCtx != null ? tlsCtx.getNativeHandle() : 0,
+                withTls,
                 options.getCredentialsProvider().getNativeHandle(), options.getPartSize(),
                 options.getThroughputTargetGbps(), options.getMaxConnections(), options.getStandardRetryOptions(),
                 options.getComputeContentMd5()));
@@ -58,6 +68,19 @@ public class S3Client extends CrtResource {
         S3MetaRequestResponseHandlerNativeAdapter responseHandlerNativeAdapter = new S3MetaRequestResponseHandlerNativeAdapter(
                 options.getResponseHandler());
 
+        URI requestUri = options.getURI();
+        int port = NO_PORT;
+        boolean useTls = withTls;
+        if (requestUri != null) {
+            useTls = requestUri.getScheme().equalsIgnoreCase("https");
+            port = requestUri.getPort();
+            // create/replace host header using URI from the options
+            List<HttpHeader> h = options.getHttpRequest().getHeaders().stream()
+                    .filter(e -> !e.getName().equalsIgnoreCase("Host"))
+                    .collect(Collectors.toList());
+            h.add(new HttpHeader("Host", requestUri.getHost()));
+            options.getHttpRequest().setHeaders(h);
+        }
         byte[] httpRequestBytes = options.getHttpRequest().marshalForJni();
         long credentialsProviderNativeHandle = 0;
         if (options.getCredentialsProvider() != null) {
@@ -66,7 +89,7 @@ public class S3Client extends CrtResource {
         long metaRequestNativeHandle = s3ClientMakeMetaRequest(getNativeHandle(), metaRequest, region.getBytes(UTF8),
                 options.getMetaRequestType().getNativeValue(), httpRequestBytes,
                 options.getHttpRequest().getBodyStream(), credentialsProviderNativeHandle,
-                responseHandlerNativeAdapter);
+                responseHandlerNativeAdapter, useTls, port);
 
         metaRequest.setMetaRequestNativeHandle(metaRequestNativeHandle);
         if (credentialsProviderNativeHandle != 0) {
@@ -108,12 +131,13 @@ public class S3Client extends CrtResource {
      * native methods
      ******************************************************************************/
     private static native long s3ClientNew(S3Client thisObj, byte[] region, byte[] endpoint, long clientBootstrap,
-            long tlsContext, long signingConfig, long partSize, double throughputTargetGbps, int maxConnections,
+            long tlsContext, boolean useTls, long signingConfig, long partSize, double throughputTargetGbps, int maxConnections,
             StandardRetryOptions standardRetryOptions, Boolean computeContentMd5) throws CrtRuntimeException;
 
     private static native void s3ClientDestroy(long client);
 
     private static native long s3ClientMakeMetaRequest(long clientId, S3MetaRequest metaRequest, byte[] region,
             int metaRequestType, byte[] httpRequestBytes, HttpRequestBodyStream httpRequestBodyStream,
-            long signingConfig, S3MetaRequestResponseHandlerNativeAdapter responseHandlerNativeAdapter);
+            long signingConfig, S3MetaRequestResponseHandlerNativeAdapter responseHandlerNativeAdapter,
+            boolean useTls, int port);
 }
