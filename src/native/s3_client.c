@@ -50,7 +50,6 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientNew(
     jbyteArray jni_endpoint,
     jlong jni_client_bootstrap,
     jlong jni_tls_ctx,
-    jboolean use_tls,
     jlong jni_credentials_provider,
     jlong part_size,
     jdouble throughput_target_gbps,
@@ -126,8 +125,6 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientNew(
         .region = region,
         .client_bootstrap = client_bootstrap,
         .tls_connection_options = tls_options,
-        // TODO WHETHER TLS IS INITAILIZED OR NOT DOESNT FORCE/PREVENT TLS LATER SO REMOVE?
-        .tls_mode = use_tls ? AWS_MR_TLS_ENABLED : AWS_MR_TLS_DISABLED,
         .signing_config = &signing_config,
         .part_size = (size_t)part_size,
         .throughput_target_gbps = throughput_target_gbps,
@@ -394,7 +391,7 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientMake
         .body_callback = s_on_s3_meta_request_body_callback,
         .finish_callback = s_on_s3_meta_request_finish_callback,
         .shutdown_callback = s_on_s3_meta_request_shutdown_complete_callback,
-        .use_tls = use_tls ? true : false,
+        .tls_mode = use_tls ? AWS_MR_TLS_ENABLED : AWS_MR_TLS_DISABLED,
         .port = port};
 
     struct aws_s3_meta_request *meta_request = aws_s3_client_make_meta_request(client, &meta_request_options);

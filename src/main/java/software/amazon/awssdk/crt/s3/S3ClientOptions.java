@@ -20,7 +20,6 @@ public class S3ClientOptions {
     private long partSize;
     private double throughputTargetGbps;
     private int maxConnections;
-    private boolean tlsEnabled = true;
     /**
      * For multi-part upload, content-md5 will be calculated if the
      * computeContentMd5 is set to true.
@@ -126,14 +125,5 @@ public class S3ClientOptions {
 
     public StandardRetryOptions getStandardRetryOptions() {
         return this.standardRetryOptions;
-    }
-
-    public S3ClientOptions withTlsEnabled(boolean tlsEnabled) {
-        this.tlsEnabled = tlsEnabled;
-        return this;
-    }
-
-    public Boolean getTlsEnabled() {
-        return this.tlsEnabled;
     }
 }
