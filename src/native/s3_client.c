@@ -6,6 +6,7 @@
 #include "http_request_utils.h"
 #include "java_class_ids.h"
 #include "retry_utils.h"
+#include "aws/io/uri.h"
 #include <aws/http/request_response.h>
 #include <aws/io/channel_bootstrap.h>
 #include <aws/io/retry_strategy.h>
@@ -345,8 +346,7 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientMake
     jobject jni_http_request_body_stream,
     jlong jni_credentials_provider,
     jobject java_response_handler_jobject,
-    jboolean use_tls,
-    int port) {
+    jbyteArray jni_uri) {
     (void)jni_class;
 
     struct aws_allocator *allocator = aws_jni_get_allocator();
@@ -358,6 +358,21 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientMake
     if (credentials_provider) {
         signing_config = aws_mem_calloc(allocator, 1, sizeof(struct aws_signing_config_aws));
         aws_s3_init_default_signing_config(signing_config, region, credentials_provider);
+    }
+
+    struct aws_byte_cursor uri_str = aws_jni_byte_cursor_from_jbyteArray_acquire(env,jni_uri);
+    if (uri_str.len) {
+        
+    }
+
+
+    struct aws_byte_cursor uri_str;
+    struct aws_uri uri;
+    if (jni_uri) {
+        uri_str = aws_jni_byte_cursor_from_jbyteArray_acquire(env,jni_uri);
+        AWS_FATAL_ASSERT(aws_uri_init_parse(&uri, allocator, &uri_str) == AWS_OP_SUCCESS);
+    } else {
+        AWS_ZERO_STRUCT(uri);
     }
 
     struct s3_client_make_meta_request_callback_data *callback_data =
@@ -405,6 +420,10 @@ JNIEXPORT jlong JNICALL Java_software_amazon_awssdk_crt_s3_S3Client_s3ClientMake
     success = true;
 
 done:
+    if (jni_uri) {
+        aws_jni_byte_cursor_from_jbyteArray_release(env, jni_region, uri_str);
+        aws_uri_clean_up(&uri);
+    }
     aws_jni_byte_cursor_from_jbyteArray_release(env, jni_region, region);
     if (signing_config) {
         aws_mem_release(allocator, signing_config);

@@ -113,14 +113,6 @@ public class HttpRequest {
     }
 
     /**
-     * Replaces the instance headers with the passed headers
-     * @param headers the new headers to assign
-     */
-    public void setHeaders(List<HttpHeader> headers) {
-        this.headers = headers;
-    }
-
-    /**
      * @return An array of the headers for this request
      */
     public HttpHeader[] getHeadersAsArray() {
